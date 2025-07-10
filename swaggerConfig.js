@@ -19,7 +19,7 @@ const swaggerOptions = {
         description: 'Development server',
       },
       {
-        url: `${process.env.API_DEPLOY}`, // Địa chỉ deploy
+        url: `https://swp-hnpa.onrender.com/`, // Địa chỉ deploy
         description: 'Production server'
       }
     ],
