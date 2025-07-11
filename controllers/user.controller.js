@@ -750,4 +750,125 @@ const updateProfile = asyncHandler(async (req, res) => {
   });
 });
 
-export { authUser, registerUser, forgotPassword, verifyCode, resetPassword, changePassword, verifyEmail, updateProfile };
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Lấy danh sách người dùng (có thể tìm kiếm, lọc theo vai trò user/shop)
+ *     tags: [Users]
+ *     parameters:
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *           enum: [customer, shop]
+ *         description: Lọc theo vai trò (user hoặc shop)
+ *       - in: query
+ *         name: keyword
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên, email, số điện thoại, họ tên, tên shop
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Số trang (mặc định là 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Số lượng trên mỗi trang (mặc định là 10)
+ *     responses:
+ *       200:
+ *         description: Danh sách người dùng
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                 page:
+ *                   type: integer
+ *                 pages:
+ *                   type: integer
+ *                 total:
+ *                   type: integer
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy danh sách người dùng thành công"
+ */
+// @desc    Lấy danh sách người dùng (có thể tìm kiếm, lọc theo vai trò user/shop)
+// @route   GET /api/users
+// @access  Private/Admin
+const getAllUsers = asyncHandler(async (req, res) => {
+  const pageSize = parseInt(req.query.limit) || 10;
+  const page = parseInt(req.query.page) || 1;
+  const { role, keyword } = req.query;
+
+  const filter = {};
+  if (role && ["customer", "shop"].includes(role)) {
+    filter.role = role;
+  }
+  if (keyword) {
+    const regex = new RegExp(keyword, "i");
+    filter.$or = [
+      { username: regex },
+      { email: regex },
+      { phone: regex },
+      { firstName: regex },
+      { lastName: regex }
+    ];
+  }
+
+  const count = await Auth.countDocuments(filter);
+  const users = await Auth.find(filter)
+    .select("-passwordHash -verificationCode -verificationCodeExpires -emailVerificationToken")
+    .limit(pageSize)
+    .skip(pageSize * (page - 1))
+    .lean();
+
+  // Nếu filter theo role=shop, lấy thêm thông tin shop từ Seller
+  if (role === "shop" || !role) {
+    // Lấy danh sách userId là shop
+    const shopUsers = users.filter(u => u.role === "shop");
+    if (shopUsers.length > 0) {
+      const Seller = (await import("../models/Seller.model.js")).default;
+      const sellerInfos = await Seller.find({ accountId: { $in: shopUsers.map(u => u._id) } }).lean();
+      // Gắn thông tin shop vào user
+      users.forEach(u => {
+        if (u.role === "shop") {
+          const shop = sellerInfos.find(s => s.accountId.toString() === u._id.toString());
+          if (shop) {
+            u.shopInfo = {
+              storeName: shop.storeName,
+              storeAddress: shop.storeAddress,
+              storeDescription: shop.storeDescription,
+              storeLogoUrl: shop.storeLogoUrl,
+              isActive: shop.isActive,
+              rating: shop.rating
+            };
+          }
+        }
+      });
+    }
+  }
+
+  res.json({
+    success: true,
+    data: users,
+    page,
+    pages: Math.ceil(count / pageSize),
+    total: count,
+    message: "Lấy danh sách người dùng thành công"
+  });
+});
+
+export { authUser, registerUser, forgotPassword, verifyCode, resetPassword, changePassword, verifyEmail, updateProfile, getAllUsers };
