@@ -15,7 +15,7 @@ const ProductSchema = new Schema({
     images:       { type: [String], default: [] }, // Danh sách link ảnh sản phẩm
     
     // Các trường thông số kỹ thuật camera
-    model:        { type: String, required: true }, // Tên/số hiệu mẫu máy
+    model:        { type: String }, // Tên/số hiệu mẫu máy
     type:         { type: String }, // Loại máy ảnh (DSLR, Mirrorless, Point and Shoot, Action Camera, v.v.)
     sensorType:   { type: String }, // Loại cảm biến (Full-Frame CMOS, APS-C CMOS, v.v.)
     megapixels:   { type: Number }, // Độ phân giải (Megapixels)
