@@ -6,7 +6,7 @@ const { Schema } = mongoose;
 const ProductSchema = new Schema({
     // seller:       { type: Schema.Types.ObjectId, ref: 'Seller', required: true }, // Đã xóa vì đây là cửa hàng đơn lẻ
     name:         { type: String, required: true, trim: true }, // Tên sản phẩm
-    brand:        { type: Schema.Types.ObjectId, ref: 'Brand', required: true }, // Thương hiệu, đã cập nhật để tham chiếu đến Brand
+    brand:        { type: Schema.Types.ObjectId, ref: 'Brand' }, // Thương hiệu, đã cập nhật để tham chiếu đến Brand
     origin:       { type: String }, // Xuất xứ
     description:  { type: String, default: '' }, // Mô tả sản phẩm
     price:        { type: Number, required: true, min: 0 }, // Giá bán
