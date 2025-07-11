@@ -205,7 +205,6 @@ const createProduct = asyncHandler(async (req, res) => {
 
   const {
     name,
-    brand,
     origin,
     description,
     price,
@@ -242,15 +241,15 @@ const createProduct = asyncHandler(async (req, res) => {
   }
 
     // Validate brand ID
-    if (!mongoose.Types.ObjectId.isValid(brand)) {
-        res.status(400);
-        throw new Error('ID thương hiệu không hợp lệ.');
-    }
-    const brandExists = await Brand.findById(brand);
-    if (!brandExists) {
-        res.status(400);
-        throw new Error('Không tìm thấy thương hiệu với ID đã cung cấp.');
-    }
+    // if (!mongoose.Types.ObjectId.isValid(brand)) {
+    //     res.status(400);
+    //     throw new Error('ID thương hiệu không hợp lệ.');
+    // }
+    // const brandExists = await Brand.findById(brand);
+    // if (!brandExists) {
+    //     res.status(400);
+    //     throw new Error('Không tìm thấy thương hiệu với ID đã cung cấp.');
+    // }
 
   // Validate categories: must be an array of valid ProductType IDs
   if (!categories || !Array.isArray(categories) || categories.length === 0) {
@@ -272,7 +271,6 @@ const createProduct = asyncHandler(async (req, res) => {
 
   const product = new Product({
     name,
-    brand,
     origin,
     description,
     price,
