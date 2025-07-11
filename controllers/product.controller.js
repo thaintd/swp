@@ -4,6 +4,7 @@ import ProductType from '../models/ProductType.model.js'; // Import model Loại
 import Brand from '../models/Brand.model.js'; // Import model Thương hiệu
 import mongoose from 'mongoose'; // Import mongoose để kiểm tra ObjectId
 import Combo from '../models/Combo.model.js';
+import Shop from '../models/Shop.model.js'; // Import model Shop
 
 /**
  * @swagger
@@ -189,8 +190,17 @@ import Combo from '../models/Combo.model.js';
 const createProduct = asyncHandler(async (req, res) => {
   // RBAC: Chỉ Admin mới có thể tạo sản phẩm
   if (req.user.role !== 'admin') {
-    res.status(403);
-    throw new Error('Không có quyền tạo sản phẩm');
+    // Nếu là shop thì kiểm tra quyền tạo sản phẩm
+    if (req.user.role === 'shop') {
+      const shop = await Shop.findOne({ accountId: req.user._id });
+      if (!shop || !shop.isActive || shop.approvalStatus !== 'approved' || !shop.hasActivePackage) {
+        res.status(403);
+        throw new Error('Shop của bạn chưa được duyệt hoặc chưa đăng ký gói. Vui lòng liên hệ admin.');
+      }
+    } else {
+      res.status(403);
+      throw new Error('Không có quyền tạo sản phẩm');
+    }
   }
 
   const {
