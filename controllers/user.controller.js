@@ -615,7 +615,7 @@ const changePassword = asyncHandler(async (req, res) => {
 // @route   GET /api/users/verify-email/:token
 // @access  Public
 const verifyEmail = asyncHandler(async (req, res) => {
-  const { token } = req.params;
+  const { token } = req.body;
 
   const user = await Auth.findOne({
     emailVerificationToken: token

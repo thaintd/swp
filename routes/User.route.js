@@ -8,7 +8,7 @@ UserRoute.post("/login", authUser);
 UserRoute.post("/register", registerUser);
 UserRoute.post("/forgot-password", forgotPassword);
 UserRoute.post("/verify-code", verifyCode);
-UserRoute.get("/verify-email/:token", verifyEmail);
+UserRoute.post("/verify-email", verifyEmail);
 UserRoute.post("/reset-password", resetPassword);
 UserRoute.post("/change-password", changePassword);
 UserRoute.put("/update-profile", protect, updateProfile);
