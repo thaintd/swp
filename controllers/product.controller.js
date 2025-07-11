@@ -230,7 +230,7 @@ const createProduct = asyncHandler(async (req, res) => {
   } = req.body;
 
   // Validate required fields
-  if (!name || !brand || price === undefined || price === null || stock === undefined || stock === null || !model) {
+  if (!name || price === undefined || price === null || stock === undefined || stock === null || !model) {
     res.status(400);
     throw new Error('Vui lòng cung cấp đủ các trường bắt buộc: tên, thương hiệu (ID), giá, số lượng tồn kho, mẫu mã.');
   }

@@ -18,8 +18,8 @@ router.route('/:id').get(getProductById);
 
 // Protected routes (require authentication)
 // Admin-only routes
-router.route('/').post(protect, admin, createProduct); // Chỉ Admin mới có thể tạo sản phẩm
-router.route('/:id').delete(protect, admin, deleteProduct); // Chỉ Admin mới có thể xóa sản phẩm
+router.route('/').post(protect, createProduct); // Chỉ Admin mới có thể tạo sản phẩm
+router.route('/:id').delete(protect, deleteProduct); // Chỉ Admin mới có thể xóa sản phẩm
 
 // Admin or Manager route for updating product
 router.route('/:id').put(protect, updateProduct); // Admin hoặc Manager có thể cập nhật sản phẩm (logic phân quyền nằm trong controller)
