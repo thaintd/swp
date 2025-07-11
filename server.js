@@ -16,6 +16,7 @@ import swaggerOptions from './swaggerConfig.js';
 import ConsultationRoute from './routes/consultation.routes.js';
 import cors from 'cors';
 import ComboRoute from './routes/combo.route.js';
+import shopRoutes from './routes/Shop.route.js';
 
 // const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
@@ -39,6 +40,7 @@ app.use('/api/orders', OrderRoute);
 app.use('/api/payments', PaymentRoute);
 app.use('/api/consultations', ConsultationRoute);
 app.use('/api/combos', ComboRoute);
+app.use('/api/shops', shopRoutes);
 
 
 const specs = swaggerJsdoc(swaggerOptions);
