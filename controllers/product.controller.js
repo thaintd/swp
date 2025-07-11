@@ -229,16 +229,16 @@ const createProduct = asyncHandler(async (req, res) => {
   } = req.body;
 
   // Validate required fields
-  if (!name || price === undefined || price === null || stock === undefined || stock === null || !model) {
+  if (!name || price === undefined || price === null ) {
     res.status(400);
     throw new Error('Vui lòng cung cấp đủ các trường bắt buộc: tên, thương hiệu (ID), giá, số lượng tồn kho, mẫu mã.');
   }
   
   // Validate price and stock are non-negative numbers
-  if (price < 0 || stock < 0) {
-      res.status(400);
-      throw new Error('Giá và số lượng tồn kho không được âm.');
-  }
+  // if (price < 0 || stock < 0) {
+  //     res.status(400);
+  //     throw new Error('Giá và số lượng tồn kho không được âm.');
+  // }
 
     // Validate brand ID
     // if (!mongoose.Types.ObjectId.isValid(brand)) {
@@ -842,7 +842,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   if (product) {
     // RBAC: Admin có thể cập nhật tất cả các trường, Manager chỉ có thể cập nhật giá và mô tả
-    if (req.user.role === 'admin') {
+    if (req.user.role === 'admin' || req.user.role === 'shop') {
       const {
         name,
         brand,
@@ -870,18 +870,18 @@ const updateProduct = asyncHandler(async (req, res) => {
       } = req.body;
 
         // Validate brand ID if provided
-        if (brand !== undefined) {
-            if (!mongoose.Types.ObjectId.isValid(brand)) {
-                res.status(400);
-                throw new Error('ID thương hiệu không hợp lệ.');
-            }
-            const brandExists = await Brand.findById(brand);
-            if (!brandExists) {
-                res.status(400);
-                throw new Error('Không tìm thấy thương hiệu với ID đã cung cấp.');
-            }
-            product.brand = brand;
-        }
+        // if (brand !== undefined) {
+        //     if (!mongoose.Types.ObjectId.isValid(brand)) {
+        //         res.status(400);
+        //         throw new Error('ID thương hiệu không hợp lệ.');
+        //     }
+        //     const brandExists = await Brand.findById(brand);
+        //     if (!brandExists) {
+        //         res.status(400);
+        //         throw new Error('Không tìm thấy thương hiệu với ID đã cung cấp.');
+        //     }
+        //     product.brand = brand;
+        // }
 
       // Validate categories if provided: must be an array of valid ProductType IDs
       if (categories !== undefined) { // Check if categories is provided in the update request
@@ -912,13 +912,13 @@ const updateProduct = asyncHandler(async (req, res) => {
           product.price = price;
       }
 
-      if (stock !== undefined && stock !== null) {
-          if (isNaN(stock) || stock < 0) {
-              res.status(400);
-              throw new Error('Số lượng tồn kho phải là số không âm.');
-          }
-          product.stock = stock;
-      }
+      // if (stock !== undefined && stock !== null) {
+      //     if (isNaN(stock) || stock < 0) {
+      //         res.status(400);
+      //         throw new Error('Số lượng tồn kho phải là số không âm.');
+      //     }
+      //     product.stock = stock;
+      // }
 
       product.name = name !== undefined ? name : product.name;
       product.origin = origin !== undefined ? origin : product.origin;
@@ -1070,7 +1070,7 @@ const updateProduct = asyncHandler(async (req, res) => {
 // @access  Private/Admin
 const deleteProduct = asyncHandler(async (req, res) => {
   // RBAC: Chỉ Admin mới có thể xóa sản phẩm
-  if (req.user.role !== 'admin') {
+  if (req.user.role !== 'admin' && req.user.role !== 'shop') {
     res.status(403);
     throw new Error('Không có quyền xóa sản phẩm');
   }
