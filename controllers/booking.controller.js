@@ -424,7 +424,7 @@ export const getBookings = asyncHandler(async (req, res) => {
  *               status:
  *                 type: string
  *                 enum: [pending, confirmed, completed, cancelled]
- *                 description: Trạng thái mới
+ *                 description: Trạng thái mới (completed chỉ được phép đúng vào ngày đặt lịch)
  *               paymentStatus:
  *                 type: string
  *                 enum: [pending, paid, failed]
@@ -443,6 +443,16 @@ export const getBookings = asyncHandler(async (req, res) => {
  *                   $ref: '#/components/schemas/Booking'
  *                 message:
  *                   type: string
+ *       400:
+ *         description: Lỗi validation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Không thể hoàn thành booking trước/sau ngày đặt lịch"
  */
 export const updateBookingStatus = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -452,6 +462,26 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
   if (!booking) {
     res.status(404);
     throw new Error('Không tìm thấy booking');
+  }
+
+  // Kiểm tra nếu muốn chuyển sang completed
+  if (status === 'completed') {
+    const today = new Date();
+    const bookingDate = new Date(booking.bookingDate);
+    
+    // So sánh ngày (bỏ qua giờ)
+    const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const bookingDateOnly = new Date(bookingDate.getFullYear(), bookingDate.getMonth(), bookingDate.getDate());
+    
+    if (todayDate < bookingDateOnly) {
+      res.status(400);
+      throw new Error('Không thể hoàn thành booking trước ngày đặt lịch');
+    }
+    
+    if (todayDate > bookingDateOnly) {
+      res.status(400);
+      throw new Error('Không thể hoàn thành booking sau ngày đặt lịch');
+    }
   }
 
   if (status) booking.status = status;
