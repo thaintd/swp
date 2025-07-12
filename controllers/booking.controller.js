@@ -519,11 +519,7 @@ export const updateBookingStatus = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error('Không thể hoàn thành booking trước ngày đặt lịch');
     }
-    
-    if (todayDate > bookingDateOnly) {
-      res.status(400);
-      throw new Error('Không thể hoàn thành booking sau ngày đặt lịch');
-    }
+
   }
 
   if (status) booking.status = status;
