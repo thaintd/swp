@@ -400,7 +400,7 @@ const registerShop = asyncHandler(async (req, res) => {
   });
 
   // Gửi email xác thực
-  const verificationUrl = `http://localhost:5173/verify-email/${emailVerificationToken}`;
+  const verificationUrl = `${process.env.FRONTEND_URL}/verify-email/${emailVerificationToken}`;
 
   const mailOptions = {
     to: email,
