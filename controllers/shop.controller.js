@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import Shop from '../models/Shop.model.js';
 import Auth from '../models/Auth.model.js';
+import transporter from '../utils/MailserVices.js';
 
 /**
  * @swagger
@@ -32,34 +33,51 @@ import Auth from '../models/Auth.model.js';
  *             properties:
  *               username:
  *                 type: string
+ *                 example: "shop123"
  *               email:
  *                 type: string
+ *                 example: "shop@example.com"
  *               password:
  *                 type: string
+ *                 example: "password123"
  *               firstName:
  *                 type: string
+ *                 example: "Nguyen"
  *               lastName:
  *                 type: string
+ *                 example: "Van A"
  *               shopName:
  *                 type: string
+ *                 example: "Shop Camera ABC"
  *               shopAddress:
  *                 type: string
+ *                 example: "123 Đường ABC, Quận 1, TP.HCM"
  *               shopDescription:
  *                 type: string
+ *                 example: "Chuyên cung cấp camera chất lượng cao"
  *               shopLogoUrl:
  *                 type: string
+ *                 example: "https://example.com/logo.png"
  *               businessLicenseNumber:
  *                 type: string
+ *                 example: "GP123456789"
+ *                 description: "Số giấy phép kinh doanh (phải unique, không được trùng)"
  *               taxId:
  *                 type: string
+ *                 example: "0123456789"
+ *                 description: "Mã số thuế (phải unique, không được trùng)"
  *               contactEmail:
  *                 type: string
+ *                 example: "contact@shop.com"
  *               contactPhone:
  *                 type: string
+ *                 example: "0123456789"
  *               bankAccountNumber:
  *                 type: string
+ *                 example: "1234567890"
  *               bankName:
  *                 type: string
+ *                 example: "Vietcombank"
  *     responses:
  *       201:
  *         description: Đăng ký shop thành công, chờ admin duyệt
@@ -75,7 +93,7 @@ import Auth from '../models/Auth.model.js';
  *                 message:
  *                   type: string
  *       400:
- *         description: Tài khoản đã tồn tại hoặc dữ liệu không hợp lệ
+ *         description: Tài khoản đã tồn tại, số giấy phép/mã số thuế trùng, hoặc dữ liệu không hợp lệ
  *         content:
  *           application/json:
  *             schema:
@@ -83,6 +101,7 @@ import Auth from '../models/Auth.model.js';
  *               properties:
  *                 message:
  *                   type: string
+ *                   example: "Tài khoản đã tồn tại" hoặc "Số giấy phép kinh doanh đã tồn tại"
  */
 
 /**
@@ -246,6 +265,27 @@ const registerShop = asyncHandler(async (req, res) => {
     throw new Error('Tài khoản đã tồn tại');
   }
 
+  // Kiểm tra businessLicenseNumber đã tồn tại chưa (nếu có)
+  if (businessLicenseNumber) {
+    const existingLicense = await Shop.findOne({ businessLicenseNumber });
+    if (existingLicense) {
+      res.status(400);
+      throw new Error('Số giấy phép kinh doanh đã tồn tại');
+    }
+  }
+
+  // Kiểm tra taxId đã tồn tại chưa (nếu có)
+  if (taxId) {
+    const existingTaxId = await Shop.findOne({ taxId });
+    if (existingTaxId) {
+      res.status(400);
+      throw new Error('Mã số thuế đã tồn tại');
+    }
+  }
+
+  // Tạo token xác thực email
+  const emailVerificationToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+
   // Tạo tài khoản shop mới
   const account = await Auth.create({
     username,
@@ -254,7 +294,8 @@ const registerShop = asyncHandler(async (req, res) => {
     firstName,
     lastName,
     role: 'shop',
-    isEmailVerified: false // hoặc true nếu không cần xác thực email
+    isEmailVerified: false,
+    emailVerificationToken
   });
 
   // Tạo shop liên kết với account vừa tạo
@@ -274,7 +315,29 @@ const registerShop = asyncHandler(async (req, res) => {
     isActive: false
   });
 
-  res.status(201).json({ success: true, data: shop, message: 'Đăng ký shop thành công, chờ admin duyệt.' });
+  // Gửi email xác thực
+  const verificationUrl = `http://localhost:5173/verify-email/${emailVerificationToken}`;
+
+  const mailOptions = {
+    to: email,
+    subject: "Xác thực địa chỉ email shop của bạn",
+    text: `Chào ${username},\n\nVui lòng xác thực địa chỉ email của shop bằng cách nhấp vào liên kết này:\n${verificationUrl}\n\n` + `Liên kết này sẽ hết hạn sau 1 giờ.`,
+    html: `<p>Chào ${username},</p><p>Vui lòng xác thực địa chỉ email của shop bằng cách nhấp vào liên kết này:</p><p><a href="${verificationUrl}">Xác thực Email Shop</a></p><p>Liên kết này sẽ hết hạn sau 1 giờ.</p>`
+  };
+
+  transporter.sendMail(mailOptions, (error, info) => {
+    if (error) {
+      console.error("Lỗi gửi email xác thực shop:", error);
+    } else {
+      console.log("Email xác thực shop đã gửi:", info.response);
+    }
+  });
+
+  res.status(201).json({ 
+    success: true, 
+    data: shop, 
+    message: 'Đăng ký shop thành công. Vui lòng kiểm tra email để xác thực tài khoản và chờ admin duyệt.' 
+  });
 });
 
 // Lấy danh sách shop chờ duyệt

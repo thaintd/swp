@@ -234,23 +234,6 @@ const createProduct = asyncHandler(async (req, res) => {
     throw new Error('Vui lòng cung cấp đủ các trường bắt buộc: tên, thương hiệu (ID), giá, số lượng tồn kho, mẫu mã.');
   }
   
-  // Validate price and stock are non-negative numbers
-  // if (price < 0 || stock < 0) {
-  //     res.status(400);
-  //     throw new Error('Giá và số lượng tồn kho không được âm.');
-  // }
-
-    // Validate brand ID
-    // if (!mongoose.Types.ObjectId.isValid(brand)) {
-    //     res.status(400);
-    //     throw new Error('ID thương hiệu không hợp lệ.');
-    // }
-    // const brandExists = await Brand.findById(brand);
-    // if (!brandExists) {
-    //     res.status(400);
-    //     throw new Error('Không tìm thấy thương hiệu với ID đã cung cấp.');
-    // }
-
   // Validate categories: must be an array of valid ProductType IDs
   if (!categories || !Array.isArray(categories) || categories.length === 0) {
       res.status(400);
@@ -269,7 +252,15 @@ const createProduct = asyncHandler(async (req, res) => {
     }
   }
 
+  // Xác định shopId nếu user là shop
+  let shopId = null;
+  if (req.user.role === 'shop') {
+    const shop = await Shop.findOne({ accountId: req.user._id });
+    shopId = shop._id;
+  }
+
   const product = new Product({
+    shopId,
     name,
     origin,
     description,
@@ -292,8 +283,6 @@ const createProduct = asyncHandler(async (req, res) => {
     warnings,
     availabilityType,
     preOrderDeliveryTime,
-    // seller đã xóa dựa trên thảo luận trước
-    // reviews và rating sẽ được quản lý riêng hoặc mặc định
   });
 
   const createdProduct = await product.save();
@@ -1098,4 +1087,103 @@ const deleteProduct = asyncHandler(async (req, res) => {
   }
 });
 
-export { createProduct, getProducts, getProductById, updateProduct, deleteProduct };
+/**
+ * @swagger
+ * /api/products/shop/{shopId}:
+ *   get:
+ *     summary: Lấy sản phẩm theo shop
+ *     tags: [Products]
+ *     parameters:
+ *       - in: path
+ *         name: shopId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của shop
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Số trang (mặc định là 1)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *         description: Số lượng sản phẩm trên mỗi trang (mặc định là 10)
+ *     responses:
+ *       200:
+ *         description: Danh sách sản phẩm của shop
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Product'
+ *                 page:
+ *                   type: integer
+ *                   example: 1
+ *                 pages:
+ *                   type: integer
+ *                   example: 5
+ *                 total:
+ *                   type: integer
+ *                   example: 50
+ *                 message:
+ *                   type: string
+ *                   example: "Lấy danh sách sản phẩm của shop thành công"
+ *       404:
+ *         description: Không tìm thấy shop
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Không tìm thấy shop"
+ */
+
+// @desc    Lấy sản phẩm theo shop
+// @route   GET /api/products/shop/:shopId
+// @access  Public
+const getProductsByShop = asyncHandler(async (req, res) => {
+  const { shopId } = req.params;
+  const pageSize = parseInt(req.query.limit) || 10;
+  const page = parseInt(req.query.page) || 1;
+
+  // Kiểm tra shop có tồn tại không
+  const shop = await Shop.findById(shopId);
+  if (!shop) {
+    res.status(404);
+    throw new Error('Không tìm thấy shop');
+  }
+
+  const filter = { shopId };
+
+  const count = await Product.countDocuments(filter);
+
+  const products = await Product.find(filter)
+    .populate('categories', 'name')
+    .populate('brand', 'name')
+    .limit(pageSize)
+    .skip(pageSize * (page - 1));
+
+  res.json({
+    success: true,
+    data: products,
+    page,
+    pages: Math.ceil(count / pageSize),
+    total: count,
+    message: 'Lấy danh sách sản phẩm của shop thành công',
+  });
+});
+
+export { createProduct, getProducts, getProductById, updateProduct, deleteProduct, getProductsByShop };

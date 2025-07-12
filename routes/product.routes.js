@@ -5,16 +5,16 @@ import {
   getProductById,
   updateProduct,
   deleteProduct,
+  getProductsByShop,
 } from '../controllers/product.controller.js';
 import { protect,admin} from '../middleware/authMiddleware.js';
-
-
 
 const router = express.Router();
 
 // Public routes for products (anyone can view products)
 router.route('/').get(getProducts);
 router.route('/:id').get(getProductById);
+router.route('/shop/:shopId').get(getProductsByShop); // Lấy sản phẩm theo shop
 
 // Protected routes (require authentication)
 // Admin-only routes
