@@ -21,8 +21,14 @@ const router = express.Router();
  *             properties:
  *               amount:
  *                 type: number
+ *                 example: 1000000
  *               description:
  *                 type: string
+ *                 example: "Đăng ký gói Shop"
+ *               shopId:
+ *                 type: string
+ *                 example: "64f1234567890abcdef67890"
+ *                 description: "ID của shop cần nâng cấp gói"
  *     responses:
  *       200:
  *         description: Tạo đơn thanh toán thành công
@@ -40,14 +46,26 @@ router.post("/payos/create", protect, createPayOSPayment);
  *         name: code
  *         schema:
  *           type: string
+ *         required: true
+ *         description: Mã trạng thái trả về từ PayOS
  *       - in: query
  *         name: orderCode
  *         schema:
  *           type: string
+ *         required: true
+ *         description: Mã đơn hàng
  *       - in: query
  *         name: status
  *         schema:
  *           type: string
+ *         required: true
+ *         description: Trạng thái thanh toán
+ *       - in: query
+ *         name: shopId
+ *         schema:
+ *           type: string
+ *         required: true
+ *         description: ID của shop cần cập nhật gói
  *     responses:
  *       302:
  *         description: Chuyển hướng về trang thành công/thất bại

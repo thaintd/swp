@@ -15,11 +15,14 @@ process.env.TZ = "Asia/Ho_Chi_Minh";
 
 // Tạo URL thanh toán nâng cấp gói cho shop qua PayOS
 export const createPayOSPayment = asyncHandler(async (req, res) => {
-  const { amount, description } = req.body;
+  const { amount, description, shopId } = req.body;
   const user = req.user;
+  console.log(req.body)
 
-  // Tạo orderCode duy nhất cho user (có thể dùng userId + timestamp)
-  const orderCode = parseInt(user._id.toString().slice(-8), 16) + Math.floor(Date.now() / 1000);
+
+  // Tạo orderCode ngắn gọn từ userId (chỉ lấy 6 ký tự cuối)
+  const shortUserId = user._id.toString().slice(-6);
+  const orderCode = parseInt(shortUserId, 16) + Math.floor(Date.now() / 1000);
 
   const body = {
     orderCode,
@@ -33,7 +36,7 @@ export const createPayOSPayment = asyncHandler(async (req, res) => {
       }
     ],
     cancelUrl: `${process.env.FRONTEND_URL}/shop-package`,
-    returnUrl: `${process.env.FRONTEND_URL}/payment-success`,
+    returnUrl: `${process.env.FRONTEND_URL}/payment-success?shopId=${shopId}`,
     buyerName: user.firstName + " " + user.lastName,
     buyerEmail: user.email,
     expiredAt: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
@@ -57,30 +60,30 @@ export const createPayOSPayment = asyncHandler(async (req, res) => {
 // Xử lý return URL từ PayOS
 export const handlePayOSReturn = asyncHandler(async (req, res) => {
   try {
-    const { code, orderCode, status, description } = req.query;
+    const { code, orderCode, status, shopId } = req.query;
+
 
     if (code === "00" && status === "PAID") {
-      // Lấy userId từ description
-      let userId = null;
-      if (description && description.includes("userId:")) {
-        userId = description.split("userId:")[1].split(" ")[0];
-      }
-      if (!userId) {
-        return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=false&error=NoUserId`);
-      }
-
-      // Tìm shop và cập nhật
+      // Thanh toán thành công - cập nhật hasActivePackage thành true
       const Shop = (await import('../models/Shop.model.js')).default;
-      const shop = await Shop.findOne({ accountId: userId });
+      
+      if (!shopId) {
+        console.log("Không có shopId trong query");
+        return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=false&error=NoShopId`);
+      }
+      
+      const shop = await Shop.findById(shopId);
       if (shop) {
         shop.hasActivePackage = true;
         await shop.save();
-        return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=true`);
+        console.log("Đã cập nhật shop:", shop.shopName, "hasActivePackage:", shop.hasActivePackage);
+        return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=true&shopId=${shopId}`);
       } else {
-        return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=false&error=NoShop`);
+        console.log("Không tìm thấy shop với ID:", shopId);
+        return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=false&error=ShopNotFound`);
       }
     } else {
-      return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=false`);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment-success?success=false&shopId=${shopId || ''}`);
     }
   } catch (error) {
     console.error('Payment return error:', error);
