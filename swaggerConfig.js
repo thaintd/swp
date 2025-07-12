@@ -85,6 +85,43 @@ const swaggerOptions = {
             preOrderDeliveryTime: { type: 'string' },
           },
         },
+        Service: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            name: { type: 'string', description: 'Tên dịch vụ' },
+            shopId: { type: 'string', description: 'ID của shop cung cấp dịch vụ' },
+            description: { type: 'string', description: 'Mô tả dịch vụ' },
+            price: { type: 'number', description: 'Giá dịch vụ' },
+            duration: { type: 'number', description: 'Thời gian thực hiện dịch vụ (phút)' },
+            categories: { type: 'array', items: { $ref: '#/components/schemas/ProductType' }, description: 'Danh mục dịch vụ, tham chiếu đến ProductType' },
+            images: { type: 'array', items: { type: 'string' }, description: 'Danh sách link ảnh dịch vụ' },
+            serviceType: { type: 'string', enum: ['onsite', 'offsite', 'both'], description: 'Loại dịch vụ: tại chỗ, tại nhà, hoặc cả hai' },
+            availability: { type: 'string', enum: ['available', 'unavailable'], description: 'Trạng thái có sẵn' },
+            maxBookings: { type: 'number', description: 'Số lượng đặt lịch tối đa mỗi ngày' },
+            workingHours: {
+              type: 'object',
+              properties: {
+                monday: { type: 'string' },
+                tuesday: { type: 'string' },
+                wednesday: { type: 'string' },
+                thursday: { type: 'string' },
+                friday: { type: 'string' },
+                saturday: { type: 'string' },
+                sunday: { type: 'string' }
+              },
+              description: 'Thời gian làm việc'
+            },
+            requirements: { type: 'array', items: { type: 'string' }, description: 'Yêu cầu của khách hàng' },
+            includes: { type: 'array', items: { type: 'string' }, description: 'Dịch vụ bao gồm' },
+            excludes: { type: 'array', items: { type: 'string' }, description: 'Dịch vụ không bao gồm' },
+            notes: { type: 'string', description: 'Ghi chú thêm' },
+            rating: { type: 'number', description: 'Điểm đánh giá trung bình' },
+            reviews: { type: 'array', items: { type: 'string' }, description: 'Danh sách review' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' },
+          },
+        },
         Order: {
           type: 'object',
           required: [

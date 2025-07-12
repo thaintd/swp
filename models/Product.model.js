@@ -4,7 +4,7 @@ import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
 const ProductSchema = new Schema({
-    // seller:       { type: Schema.Types.ObjectId, ref: 'Seller', required: true }, // Đã xóa vì đây là cửa hàng đơn lẻ
+    shopId: { type: Schema.Types.ObjectId, ref: 'Shop' }, // Liên kết với shop
     name:         { type: String, required: true, trim: true }, // Tên sản phẩm
     brand:        { type: Schema.Types.ObjectId, ref: 'Brand' }, // Thương hiệu, đã cập nhật để tham chiếu đến Brand
     origin:       { type: String }, // Xuất xứ

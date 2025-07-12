@@ -1,7 +1,6 @@
 import asyncHandler from "express-async-handler";
 import dotenv from "dotenv";
 import PayOS from "@payos/node";
-import Auth from "../models/Auth.model.js";
 
 
 dotenv.config();
