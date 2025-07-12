@@ -9,6 +9,8 @@ import {
   getBookingsByCustomerEmail,
   updateBookingStatus
 } from '../controllers/booking.controller.js';
+import { protect, admin } from '../middleware/authMiddleware.js'; 
+
 
 const router = express.Router();
 
@@ -20,7 +22,7 @@ const router = express.Router();
  */
 
 // Tạo booking mới
-router.post('/', createBooking);
+router.post('/', protect, createBooking);
 
 // Tạo thanh toán cho booking
 router.post('/payment', createBookingPayment);
