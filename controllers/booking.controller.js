@@ -1,0 +1,590 @@
+import asyncHandler from 'express-async-handler';
+import Booking from '../models/Booking.model.js';
+import Service from '../models/Service.model.js';
+import Shop from '../models/Shop.model.js';
+import PayOS from "@payos/node";
+import dotenv from "dotenv";
+
+dotenv.config();
+
+const payOS = new PayOS(
+  process.env.PAYOS_CLIENT_ID,
+  process.env.PAYOS_API_KEY,
+  process.env.PAYOS_CHECKSUM_KEY
+);
+
+/**
+ * @swagger
+ * /api/bookings:
+ *   post:
+ *     summary: Đặt lịch dịch vụ
+ *     tags: [Bookings]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - serviceId
+ *               - customerName
+ *               - customerPhone
+ *               - customerEmail
+ *               - serviceType
+ *               - address
+ *               - bookingDate
+ *               - bookingTime
+ *             properties:
+ *               serviceId:
+ *                 type: string
+ *                 description: ID dịch vụ
+ *               customerName:
+ *                 type: string
+ *                 example: "Nguyễn Văn A"
+ *               customerPhone:
+ *                 type: string
+ *                 example: "0987654321"
+ *               customerEmail:
+ *                 type: string
+ *                 example: "nguyenvana@email.com"
+ *               serviceType:
+ *                 type: string
+ *                 enum: [onsite, offsite]
+ *                 example: onsite
+ *               address:
+ *                 type: string
+ *                 example: "123 Đường ABC, Quận 1, TP.HCM"
+ *               bookingDate:
+ *                 type: string
+ *                 format: date
+ *                 example: "2024-06-01"
+ *               bookingTime:
+ *                 type: string
+ *                 example: "14:00"
+ *               notes:
+ *                 type: string
+ *                 example: "Khách cần chuẩn bị phòng rộng"
+ *     responses:
+ *       201:
+ *         description: Đặt lịch thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Booking'
+ *                 message:
+ *                   type: string
+ *                   example: "Đặt lịch thành công, vui lòng thanh toán phí đặt cọc 10% để xác nhận!"
+ */
+export const createBooking = asyncHandler(async (req, res) => {
+  const {
+    serviceId, customerName, customerPhone, customerEmail,
+    serviceType, address, bookingDate, bookingTime, notes
+  } = req.body;
+
+  // Validate
+  const service = await Service.findById(serviceId);
+  if (!service) throw new Error('Không tìm thấy dịch vụ');
+  const shop = await Shop.findById(service.shopId);
+  if (!shop) throw new Error('Không tìm thấy shop');
+
+  // Tính phí đặt cọc 10% giá dịch vụ
+  const depositAmount = Math.round(service.price * 0.1);
+  const totalAmount = service.price;
+
+  const booking = await Booking.create({
+    serviceId, shopId: shop._id, customerName, customerPhone, customerEmail,
+    serviceType, address, bookingDate, bookingTime, notes, totalAmount, depositAmount
+  });
+
+  res.status(201).json({
+    success: true,
+    data: booking,
+    message: 'Đặt lịch thành công, vui lòng thanh toán phí đặt cọc 10% để xác nhận!'
+  });
+});
+
+/**
+ * @swagger
+ * /api/bookings/payment:
+ *   post:
+ *     summary: Tạo thanh toán phí đặt cọc cho booking
+ *     tags: [Bookings]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - bookingId
+ *             properties:
+ *               bookingId:
+ *                 type: string
+ *                 description: ID của booking cần thanh toán phí đặt cọc
+ *     responses:
+ *       200:
+ *         description: Tạo thanh toán phí đặt cọc thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     paymentUrl:
+ *                       type: string
+ *                       description: URL thanh toán PayOS
+ *                 message:
+ *                   type: string
+ *                   example: "Tạo URL thanh toán phí đặt cọc thành công"
+ */
+export const createBookingPayment = asyncHandler(async (req, res) => {
+  const { bookingId } = req.body;
+
+  // Validate booking
+  const booking = await Booking.findById(bookingId).populate('serviceId');
+  if (!booking) {
+    res.status(404);
+    throw new Error('Không tìm thấy booking');
+  }
+
+  if (booking.paymentStatus === 'paid') {
+    res.status(400);
+    throw new Error('Booking đã được thanh toán');
+  }
+
+  // Tạo orderCode ngắn gọn từ bookingId
+  const shortBookingId = bookingId.slice(-6);
+  const orderCode = parseInt(shortBookingId, 16) + Math.floor(Date.now() / 1000);
+
+  const body = {
+    orderCode,
+    amount: Math.round(booking.depositAmount),
+    description: `Thanh toán `,
+    items: [
+      {
+        name: `Phí đặt cọc - ${booking.serviceId.name || 'Dịch vụ'}`,
+        quantity: 1,
+        price: Math.round(booking.depositAmount)
+      }
+    ],
+    cancelUrl: `${process.env.FRONTEND_URL}/booking-payment?bookingId=${bookingId}`,
+    returnUrl: `${process.env.FRONTEND_URL}/booking-payment-success?bookingId=${bookingId}`,
+    buyerName: booking.customerName,
+    buyerEmail: booking.customerEmail,
+    expiredAt: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
+  };
+
+  try {
+    const paymentLinkRes = await payOS.createPaymentLink(body);
+    res.json({
+      success: true,
+      data: {
+        paymentUrl: paymentLinkRes.checkoutUrl
+      },
+      message: "Tạo URL thanh toán phí đặt cọc thành công"
+    });
+  } catch (error) {
+    res.status(500);
+    throw new Error("Không thể tạo thanh toán PayOS: " + (error.response?.data?.desc || error.message));
+  }
+});
+
+/**
+ * @swagger
+ * /api/bookings/payment/return:
+ *   get:
+ *     summary: Xử lý return URL từ PayOS cho booking
+ *     tags: [Bookings]
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         schema:
+ *           type: string
+ *         description: Mã trạng thái từ PayOS
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *         description: Trạng thái thanh toán
+ *       - in: query
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *         description: ID của booking
+ *     responses:
+ *       200:
+ *         description: Xử lý thành công
+ */
+export const handleBookingPaymentReturn = asyncHandler(async (req, res) => {
+  try {
+    const { code, status, bookingId } = req.query;
+
+    if (code === "00" && status === "PAID") {
+      // Thanh toán thành công - cập nhật paymentStatus thành paid
+      const booking = await Booking.findById(bookingId);
+      if (booking) {
+        booking.paymentStatus = 'paid';
+        booking.status = 'confirmed'; // Tự động xác nhận booking khi thanh toán thành công
+        await booking.save();
+        console.log("Đã cập nhật booking:", bookingId, "paymentStatus:", booking.paymentStatus);
+        return res.redirect(`${process.env.FRONTEND_URL}/booking-payment-success?success=true&bookingId=${bookingId}`);
+      } else {
+        console.log("Không tìm thấy booking với ID:", bookingId);
+        return res.redirect(`${process.env.FRONTEND_URL}/booking-payment-success?success=false&error=BookingNotFound`);
+      }
+    } else {
+      return res.redirect(`${process.env.FRONTEND_URL}/booking-payment-success?success=false&bookingId=${bookingId || ''}`);
+    }
+  } catch (error) {
+    console.error('Booking payment return error:', error);
+    return res.redirect(`${process.env.FRONTEND_URL}/booking-payment-success?success=false&error=${error.message}`);
+  }
+});
+
+/**
+ * @swagger
+ * /api/bookings/payment/webhook:
+ *   post:
+ *     summary: Xử lý webhook từ PayOS cho booking
+ *     tags: [Bookings]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Xử lý webhook thành công
+ */
+export const handleBookingPaymentWebhook = asyncHandler(async (req, res) => {
+  try {
+    // Xác thực webhook
+    const webhookData = payOS.verifyPaymentWebhookData(req.body);
+    if (!webhookData) {
+      res.status(400);
+      throw new Error("Invalid webhook data");
+    }
+
+    // Lấy bookingId từ description
+    let bookingId = null;
+    if (webhookData.description && webhookData.description.includes("bookingId:")) {
+      bookingId = webhookData.description.split("bookingId:")[1].split(" ")[0];
+    }
+
+    if (!bookingId) {
+      res.status(400);
+      throw new Error("Không xác định được booking để cập nhật");
+    }
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      res.status(404);
+      throw new Error("Booking không tồn tại");
+    }
+
+    // Nếu thanh toán thành công, cập nhật booking
+    if (webhookData.code === "00") {
+      booking.paymentStatus = 'paid';
+      booking.status = 'confirmed';
+      await booking.save();
+      console.log("Webhook: Đã cập nhật booking:", bookingId, "paymentStatus:", booking.paymentStatus);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Booking webhook error:', error);
+    res.status(500);
+    throw new Error("Error processing booking webhook: " + error.message);
+  }
+});
+
+/**
+ * @swagger
+ * /api/bookings:
+ *   get:
+ *     summary: Lấy danh sách booking
+ *     tags: [Bookings]
+ *     parameters:
+ *       - in: query
+ *         name: shopId
+ *         schema:
+ *           type: string
+ *         description: Lọc theo shop ID
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, confirmed, completed, cancelled]
+ *         description: Lọc theo trạng thái
+ *       - in: query
+ *         name: paymentStatus
+ *         schema:
+ *           type: string
+ *           enum: [pending, paid, failed]
+ *         description: Lọc theo trạng thái thanh toán
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Số lượng item trên mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách booking thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Booking'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     pages:
+ *                       type: integer
+ */
+export const getBookings = asyncHandler(async (req, res) => {
+  const { shopId, status, paymentStatus, page = 1, limit = 10 } = req.query;
+  
+  const filter = {};
+  if (shopId) filter.shopId = shopId;
+  if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+
+  const skip = (page - 1) * limit;
+  
+  const bookings = await Booking.find(filter)
+    .populate('serviceId', 'name price')
+    .populate('shopId', 'shopName')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Booking.countDocuments(filter);
+  const pages = Math.ceil(total / limit);
+
+  res.json({
+    success: true,
+    data: bookings,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages
+    }
+  });
+});
+
+/**
+ * @swagger
+ * /api/bookings/{id}:
+ *   put:
+ *     summary: Cập nhật trạng thái booking
+ *     tags: [Bookings]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của booking
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [pending, confirmed, completed, cancelled]
+ *                 description: Trạng thái mới
+ *               paymentStatus:
+ *                 type: string
+ *                 enum: [pending, paid, failed]
+ *                 description: Trạng thái thanh toán mới
+ *     responses:
+ *       200:
+ *         description: Cập nhật thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Booking'
+ *                 message:
+ *                   type: string
+ */
+export const updateBookingStatus = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { status, paymentStatus } = req.body;
+
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    res.status(404);
+    throw new Error('Không tìm thấy booking');
+  }
+
+  if (status) booking.status = status;
+  if (paymentStatus) booking.paymentStatus = paymentStatus;
+
+  await booking.save();
+
+  res.json({
+    success: true,
+    data: booking,
+    message: 'Cập nhật trạng thái booking thành công'
+  });
+});
+
+/**
+ * @swagger
+ * /api/bookings/{id}:
+ *   get:
+ *     summary: Lấy chi tiết booking theo ID
+ *     tags: [Bookings]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của booking
+ *     responses:
+ *       200:
+ *         description: Lấy chi tiết booking thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Booking'
+ */
+export const getBookingById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const booking = await Booking.findById(id)
+    .populate('serviceId', 'name price description')
+    .populate('shopId', 'shopName address phone');
+
+  if (!booking) {
+    res.status(404);
+    throw new Error('Không tìm thấy booking');
+  }
+
+  res.json({
+    success: true,
+    data: booking
+  });
+});
+
+/**
+ * @swagger
+ * /api/bookings/customer/{email}:
+ *   get:
+ *     summary: Lấy danh sách booking theo email khách hàng
+ *     tags: [Bookings]
+ *     parameters:
+ *       - in: path
+ *         name: email
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Email của khách hàng
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Trang hiện tại
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *         description: Số lượng item trên mỗi trang
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách booking thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Booking'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *                     pages:
+ *                       type: integer
+ */
+export const getBookingsByCustomerEmail = asyncHandler(async (req, res) => {
+  const { email } = req.params;
+  const { page = 1, limit = 10 } = req.query;
+
+  const skip = (page - 1) * limit;
+  
+  const bookings = await Booking.find({ customerEmail: email })
+    .populate('serviceId', 'name price description')
+    .populate('shopId', 'shopName address phone')
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(parseInt(limit));
+
+  const total = await Booking.countDocuments({ customerEmail: email });
+  const pages = Math.ceil(total / limit);
+
+  res.json({
+    success: true,
+    data: bookings,
+    pagination: {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      total,
+      pages
+    }
+  });
+}); 

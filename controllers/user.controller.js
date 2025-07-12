@@ -62,6 +62,9 @@ import { protect, admin } from "../middleware/authMiddleware.js";
  *                     shopId:
  *                       type: string
  *                       description: ID của shop (chỉ có khi role là 'shop')
+ *                     hasPackage:
+ *                       type: boolean
+ *                       description: Trạng thái gói của shop (chỉ có khi role là 'shop')
  *                     token:
  *                       type: string
  *                 message:
@@ -104,11 +107,12 @@ const authUser = asyncHandler(async (req, res) => {
       token: generateToken(user._id)
     };
 
-    // Nếu là shop thì tìm thêm shopId
+    // Nếu là shop thì tìm thêm shopId và hasPackage
     if (user.role === 'shop') {
       const shop = await Shop.findOne({ accountId: user._id });
       if (shop) {
         responseData.shopId = shop._id;
+        responseData.hasPackage = shop.hasActivePackage;
       }
     }
 
