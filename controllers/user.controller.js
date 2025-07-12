@@ -1,5 +1,6 @@
 import asyncHandler from "express-async-handler";
 import Auth from "../models/Auth.model.js";
+import Shop from "../models/Shop.model.js";
 import generateToken from "../utils/GenerateToken.js";
 import bcrypt from "bcryptjs";
 import transporter from "../utils/MailserVices.js";
@@ -58,11 +59,14 @@ import { protect, admin } from "../middleware/authMiddleware.js";
  *                       type: string
  *                     isEmailVerified:
  *                       type: boolean
+ *                     shopId:
+ *                       type: string
+ *                       description: ID của shop (chỉ có khi role là 'shop')
  *                     token:
  *                       type: string
  *                 message:
  *                   type: string
- *                   example: ""
+ *                   example: "Đăng nhập thành công"
  *       401:
  *         description: Sai tài khoản hoặc mật khẩu, hoặc Email chưa được xác thực
  *         content:
@@ -89,16 +93,28 @@ const authUser = asyncHandler(async (req, res) => {
       res.status(401);
       throw new Error("Email chưa được xác thực. Vui lòng kiểm tra email của bạn.");
     }
+
+    // Tạo response data cơ bản
+    const responseData = {
+      _id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isEmailVerified: user.isEmailVerified,
+      token: generateToken(user._id)
+    };
+
+    // Nếu là shop thì tìm thêm shopId
+    if (user.role === 'shop') {
+      const shop = await Shop.findOne({ accountId: user._id });
+      if (shop) {
+        responseData.shopId = shop._id;
+      }
+    }
+
     res.json({
       success: true,
-      data: {
-        _id: user._id,
-        username: user.username,
-        email: user.email,
-        role: user.role,
-        isEmailVerified: user.isEmailVerified,
-        token: generateToken(user._id)
-      },
+      data: responseData,
       message: "Đăng nhập thành công"
     });
   } else {

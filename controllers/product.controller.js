@@ -1114,7 +1114,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
  *         description: Số lượng sản phẩm trên mỗi trang (mặc định là 10)
  *     responses:
  *       200:
- *         description: Danh sách sản phẩm của shop
+ *         description: Thông tin shop và danh sách sản phẩm của shop
  *         content:
  *           application/json:
  *             schema:
@@ -1123,7 +1123,9 @@ const deleteProduct = asyncHandler(async (req, res) => {
  *                 success:
  *                   type: boolean
  *                   example: true
- *                 data:
+ *                 shop:
+ *                   $ref: '#/components/schemas/Shop'
+ *                 products:
  *                   type: array
  *                   items:
  *                     $ref: '#/components/schemas/Product'
@@ -1138,7 +1140,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
  *                   example: 50
  *                 message:
  *                   type: string
- *                   example: "Lấy danh sách sản phẩm của shop thành công"
+ *                   example: "Lấy thông tin shop và danh sách sản phẩm thành công"
  *       404:
  *         description: Không tìm thấy shop
  *         content:
@@ -1159,8 +1161,8 @@ const getProductsByShop = asyncHandler(async (req, res) => {
   const pageSize = parseInt(req.query.limit) || 10;
   const page = parseInt(req.query.page) || 1;
 
-  // Kiểm tra shop có tồn tại không
-  const shop = await Shop.findById(shopId);
+  // Kiểm tra shop có tồn tại không và lấy thông tin đầy đủ
+  const shop = await Shop.findById(shopId).populate('accountId', 'username email firstName lastName');
   if (!shop) {
     res.status(404);
     throw new Error('Không tìm thấy shop');
@@ -1178,11 +1180,12 @@ const getProductsByShop = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    data: products,
+    shop: shop,
+    products: products,
     page,
     pages: Math.ceil(count / pageSize),
     total: count,
-    message: 'Lấy danh sách sản phẩm của shop thành công',
+    message: 'Lấy thông tin shop và danh sách sản phẩm thành công',
   });
 });
 

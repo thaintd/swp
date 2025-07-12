@@ -15,6 +15,12 @@ import transporter from '../utils/MailserVices.js';
  * /api/shops/register:
  *   post:
  *     summary: Đăng ký shop mới (tạo luôn tài khoản shop)
+ *     description: |
+ *       API này cho phép đăng ký shop mới với các bước:
+ *       1. Tạo tài khoản Auth với role 'shop'
+ *       2. Tạo thông tin shop liên kết với tài khoản
+ *       3. Gửi email xác thực cho shop
+ *       4. Shop sẽ ở trạng thái 'pending' chờ admin duyệt
  *     tags: [Shops]
  *     requestBody:
  *       required: true
@@ -33,51 +39,107 @@ import transporter from '../utils/MailserVices.js';
  *             properties:
  *               username:
  *                 type: string
+ *                 minLength: 3
+ *                 maxLength: 50
  *                 example: "shop123"
+ *                 description: "Tên đăng nhập của shop (phải unique)"
  *               email:
  *                 type: string
+ *                 format: email
  *                 example: "shop@example.com"
+ *                 description: "Email của shop (phải unique)"
  *               password:
  *                 type: string
+ *                 minLength: 6
  *                 example: "password123"
+ *                 description: "Mật khẩu (tối thiểu 6 ký tự)"
  *               firstName:
  *                 type: string
  *                 example: "Nguyen"
+ *                 description: "Tên của chủ shop"
  *               lastName:
  *                 type: string
  *                 example: "Van A"
+ *                 description: "Họ của chủ shop"
  *               shopName:
  *                 type: string
+ *                 minLength: 2
+ *                 maxLength: 100
  *                 example: "Shop Camera ABC"
+ *                 description: "Tên cửa hàng"
  *               shopAddress:
  *                 type: string
+ *                 minLength: 10
  *                 example: "123 Đường ABC, Quận 1, TP.HCM"
+ *                 description: "Địa chỉ cửa hàng"
  *               shopDescription:
  *                 type: string
- *                 example: "Chuyên cung cấp camera chất lượng cao"
+ *                 maxLength: 500
+ *                 example: "Chuyên cung cấp camera chất lượng cao, dịch vụ tận tâm"
+ *                 description: "Mô tả về cửa hàng (không bắt buộc)"
  *               shopLogoUrl:
  *                 type: string
+ *                 format: uri
  *                 example: "https://example.com/logo.png"
+ *                 description: "URL logo cửa hàng (không bắt buộc)"
  *               businessLicenseNumber:
  *                 type: string
+ *                 pattern: "^[A-Z0-9]{8,15}$"
  *                 example: "GP123456789"
- *                 description: "Số giấy phép kinh doanh (phải unique, không được trùng)"
+ *                 description: "Số giấy phép kinh doanh (phải unique, format: GP + 9 số)"
  *               taxId:
  *                 type: string
+ *                 pattern: "^[0-9]{10,13}$"
  *                 example: "0123456789"
- *                 description: "Mã số thuế (phải unique, không được trùng)"
+ *                 description: "Mã số thuế (phải unique, 10-13 số)"
  *               contactEmail:
  *                 type: string
+ *                 format: email
  *                 example: "contact@shop.com"
+ *                 description: "Email liên hệ cửa hàng (không bắt buộc)"
  *               contactPhone:
  *                 type: string
+ *                 pattern: "^[0-9]{10,11}$"
  *                 example: "0123456789"
+ *                 description: "Số điện thoại liên hệ (10-11 số)"
  *               bankAccountNumber:
  *                 type: string
+ *                 pattern: "^[0-9]{10,16}$"
  *                 example: "1234567890"
+ *                 description: "Số tài khoản ngân hàng (10-16 số)"
  *               bankName:
  *                 type: string
  *                 example: "Vietcombank"
+ *                 description: "Tên ngân hàng"
+ *           examples:
+ *             example1:
+ *               summary: "Đăng ký shop cơ bản"
+ *               value:
+ *                 username: "shop123"
+ *                 email: "shop@example.com"
+ *                 password: "password123"
+ *                 firstName: "Nguyen"
+ *                 lastName: "Van A"
+ *                 shopName: "Shop Camera ABC"
+ *                 shopAddress: "123 Đường ABC, Quận 1, TP.HCM"
+ *             example2:
+ *               summary: "Đăng ký shop đầy đủ thông tin"
+ *               value:
+ *                 username: "shop456"
+ *                 email: "shop2@example.com"
+ *                 password: "password123"
+ *                 firstName: "Tran"
+ *                 lastName: "Thi B"
+ *                 shopName: "Shop Camera XYZ"
+ *                 shopAddress: "456 Đường XYZ, Quận 2, TP.HCM"
+ *                 shopDescription: "Chuyên cung cấp camera chất lượng cao, dịch vụ tận tâm"
+ *                 shopLogoUrl: "https://example.com/logo.png"
+ *                 businessLicenseNumber: "GP987654321"
+ *                 taxId: "9876543210"
+ *                 contactEmail: "contact@shop.com"
+ *                 contactPhone: "0987654321"
+ *                 bankAccountNumber: "1234567890"
+ *                 bankName: "Vietcombank"
  *     responses:
  *       201:
  *         description: Đăng ký shop thành công, chờ admin duyệt
@@ -88,20 +150,42 @@ import transporter from '../utils/MailserVices.js';
  *               properties:
  *                 success:
  *                   type: boolean
+ *                   example: true
  *                 data:
  *                   $ref: '#/components/schemas/Shop'
  *                 message:
  *                   type: string
+ *                   example: "Đăng ký shop thành công. Vui lòng kiểm tra email để xác thực tài khoản và chờ admin duyệt."
  *       400:
- *         description: Tài khoản đã tồn tại, số giấy phép/mã số thuế trùng, hoặc dữ liệu không hợp lệ
+ *         description: Dữ liệu không hợp lệ hoặc trùng lặp
  *         content:
  *           application/json:
  *             schema:
  *               type: object
  *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
  *                 message:
  *                   type: string
- *                   example: "Tài khoản đã tồn tại" hoặc "Số giấy phép kinh doanh đã tồn tại"
+ *                   examples:
+ *                     duplicate_user: "Tài khoản đã tồn tại"
+ *                     duplicate_license: "Số giấy phép kinh doanh đã tồn tại"
+ *                     duplicate_tax: "Mã số thuế đã tồn tại"
+ *                     invalid_data: "Dữ liệu không hợp lệ"
+ *       500:
+ *         description: Lỗi server
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 message:
+ *                   type: string
+ *                   example: "Lỗi server, vui lòng thử lại sau"
  */
 
 /**
