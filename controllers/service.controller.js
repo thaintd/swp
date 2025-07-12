@@ -379,7 +379,7 @@ const getServices = asyncHandler(async (req, res) => {
   const count = await Service.countDocuments(filter);
 
   const services = await Service.find(filter)
-    .populate('shopId', 'name address') // Lấy thông tin shop
+    .populate('shopId', 'shopName shopAddress contactPhone shopLogoUrl') // Lấy thông tin shop
     .populate('categories', 'name') // Lấy tên loại sản phẩm
     .limit(pageSize)
     .skip(pageSize * (page - 1));
@@ -441,7 +441,7 @@ const getServiceById = asyncHandler(async (req, res) => {
   }
 
   const service = await Service.findById(req.params.id)
-    .populate('shopId', 'name address phone')
+    .populate('shopId', 'shopName shopAddress contactPhone shopLogoUrl')
     .populate('categories', 'name'); // Lấy tên loại sản phẩm
 
   if (service) {
@@ -814,7 +814,7 @@ const getServicesByShop = asyncHandler(async (req, res) => {
   const count = await Service.countDocuments(filter);
 
   const services = await Service.find(filter)
-    .populate('shopId', 'name address')
+    .populate('shopId', 'shopName shopAddress contactPhone shopLogoUrl')
     .populate('categories', 'name') // Lấy tên loại sản phẩm
     .limit(pageSize)
     .skip(pageSize * (page - 1));

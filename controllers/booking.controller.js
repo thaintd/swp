@@ -19,6 +19,9 @@ const payOS = new PayOS(
  *   post:
  *     summary: Đặt lịch dịch vụ
  *     tags: [Bookings]
+ *     description: |
+ *       - Khách hàng đặt lịch dịch vụ.
+ *       - Shop không thể tự đặt dịch vụ của chính mình (nếu user là shop và dịch vụ thuộc shop đó sẽ trả lỗi 403).
  *     requestBody:
  *       required: true
  *       content:
@@ -79,6 +82,16 @@ const payOS = new PayOS(
  *                 message:
  *                   type: string
  *                   example: "Đặt lịch thành công, vui lòng thanh toán phí đặt cọc 10% để xác nhận!"
+ *       403:
+ *         description: Shop không thể tự đặt dịch vụ của chính mình
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: "Shop không thể tự đặt dịch vụ của chính mình"
  */
 export const createBooking = asyncHandler(async (req, res) => {
   const {
@@ -91,6 +104,18 @@ export const createBooking = asyncHandler(async (req, res) => {
   if (!service) throw new Error('Không tìm thấy dịch vụ');
   const shop = await Shop.findById(service.shopId);
   if (!shop) throw new Error('Không tìm thấy shop');
+
+  // Debug log
+  if (req.user) {
+    console.log('User:', req.user._id.toString(), req.user.role);
+    console.log('Shop accountId:', shop.accountId.toString());
+  }
+
+  // Chặn shop tự đặt dịch vụ của mình
+  if (req.user && req.user.role === 'shop' && shop.accountId && shop.accountId.toString() === req.user._id.toString()) {
+    res.status(403);
+    throw new Error('Shop không thể tự đặt dịch vụ của chính mình');
+  }
 
   // Tính phí đặt cọc 10% giá dịch vụ
   const depositAmount = Math.round(service.price * 0.1);
@@ -313,6 +338,9 @@ export const handleBookingPaymentWebhook = asyncHandler(async (req, res) => {
  *   get:
  *     summary: Lấy danh sách booking
  *     tags: [Bookings]
+ *     description: |
+ *       - Lấy danh sách booking, hỗ trợ tìm kiếm theo tên, email, số điện thoại khách hàng (query: search).
+ *       - Hỗ trợ filter theo trạng thái (status, paymentStatus).
  *     parameters:
  *       - in: query
  *         name: shopId
@@ -324,13 +352,18 @@ export const handleBookingPaymentWebhook = asyncHandler(async (req, res) => {
  *         schema:
  *           type: string
  *           enum: [pending, confirmed, completed, cancelled]
- *         description: Lọc theo trạng thái
+ *         description: Lọc theo trạng thái booking
  *       - in: query
  *         name: paymentStatus
  *         schema:
  *           type: string
  *           enum: [pending, paid, failed]
  *         description: Lọc theo trạng thái thanh toán
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên, email, số điện thoại khách hàng
  *       - in: query
  *         name: page
  *         schema:
@@ -370,12 +403,21 @@ export const handleBookingPaymentWebhook = asyncHandler(async (req, res) => {
  *                       type: integer
  */
 export const getBookings = asyncHandler(async (req, res) => {
-  const { shopId, status, paymentStatus, page = 1, limit = 10 } = req.query;
+  const { shopId, status, paymentStatus, page = 1, limit = 10, search } = req.query;
   
   const filter = {};
   if (shopId) filter.shopId = shopId;
   if (status) filter.status = status;
   if (paymentStatus) filter.paymentStatus = paymentStatus;
+
+  // Thêm search theo tên, email, phone
+  if (search) {
+    filter.$or = [
+      { customerName: { $regex: search, $options: 'i' } },
+      { customerEmail: { $regex: search, $options: 'i' } },
+      { customerPhone: { $regex: search, $options: 'i' } }
+    ];
+  }
 
   const skip = (page - 1) * limit;
   
@@ -546,6 +588,10 @@ export const getBookingById = asyncHandler(async (req, res) => {
  *   get:
  *     summary: Lấy danh sách booking theo email khách hàng
  *     tags: [Bookings]
+ *     description: |
+ *       - Lấy danh sách booking của khách hàng theo email.
+ *       - Hỗ trợ filter theo trạng thái (status, paymentStatus).
+ *       - Hỗ trợ tìm kiếm theo tên, email, số điện thoại khách hàng (query: search).
  *     parameters:
  *       - in: path
  *         name: email
@@ -553,6 +599,23 @@ export const getBookingById = asyncHandler(async (req, res) => {
  *         schema:
  *           type: string
  *         description: Email của khách hàng
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, confirmed, completed, cancelled]
+ *         description: Lọc theo trạng thái booking
+ *       - in: query
+ *         name: paymentStatus
+ *         schema:
+ *           type: string
+ *           enum: [pending, paid, failed]
+ *         description: Lọc theo trạng thái thanh toán
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Tìm kiếm theo tên, email, số điện thoại khách hàng
  *       - in: query
  *         name: page
  *         schema:
@@ -593,18 +656,30 @@ export const getBookingById = asyncHandler(async (req, res) => {
  */
 export const getBookingsByCustomerEmail = asyncHandler(async (req, res) => {
   const { email } = req.params;
-  const { page = 1, limit = 10 } = req.query;
+  const { page = 1, limit = 10, status, paymentStatus, search } = req.query;
+
+  const filter = { customerEmail: email };
+  if (status) filter.status = status;
+  if (paymentStatus) filter.paymentStatus = paymentStatus;
+
+  if (search) {
+    filter.$or = [
+      { customerName: { $regex: search, $options: 'i' } },
+      { customerEmail: { $regex: search, $options: 'i' } },
+      { customerPhone: { $regex: search, $options: 'i' } }
+    ];
+  }
 
   const skip = (page - 1) * limit;
   
-  const bookings = await Booking.find({ customerEmail: email })
+  const bookings = await Booking.find(filter)
     .populate('serviceId', 'name price description')
     .populate('shopId', 'shopName address phone')
     .sort({ createdAt: -1 })
     .skip(skip)
     .limit(parseInt(limit));
 
-  const total = await Booking.countDocuments({ customerEmail: email });
+  const total = await Booking.countDocuments(filter);
   const pages = Math.ceil(total / limit);
 
   res.json({
