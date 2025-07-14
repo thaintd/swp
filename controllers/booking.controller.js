@@ -815,9 +815,9 @@ export const reviewCompletedService = asyncHandler(async (req, res) => {
 
 /**
  * @swagger
- * /api/reviews/service/{serviceId}:
+ * /api/bookings/reviews/service/{serviceId}:
  *   get:
- *     summary: Lấy danh sách đánh giá cho dịch vụ
+ *     summary: Lấy danh sách đánh giá cho dịch vụ (public)
  *     tags: [Reviews]
  *     parameters:
  *       - in: path
@@ -829,6 +829,17 @@ export const reviewCompletedService = asyncHandler(async (req, res) => {
  *     responses:
  *       200:
  *         description: Danh sách đánh giá
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ServiceReview'
  */
 export const getServiceReviews = asyncHandler(async (req, res) => {
   const { serviceId } = req.params;
