@@ -4,6 +4,7 @@ const { Schema } = mongoose;
 const BookingSchema = new Schema({
   serviceId: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
   shopId: { type: Schema.Types.ObjectId, ref: 'Shop', required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'Auth' }, // Thêm trường userId
   customerName: { type: String, required: true },
   customerPhone: { type: String, required: true },
   customerEmail: { type: String, required: true },

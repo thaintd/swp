@@ -256,6 +256,29 @@ const swaggerOptions = {
               type: 'string'
             }
           }
+        },
+        Booking: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            serviceId: { type: 'string', description: 'ID dịch vụ' },
+            shopId: { type: 'string', description: 'ID shop' },
+            userId: { type: 'string', description: 'ID người dùng đặt lịch (Auth)' },
+            customerName: { type: 'string', description: 'Tên khách hàng' },
+            customerPhone: { type: 'string', description: 'Số điện thoại khách hàng' },
+            customerEmail: { type: 'string', description: 'Email khách hàng' },
+            serviceType: { type: 'string', enum: ['onsite', 'offsite'], description: 'Loại dịch vụ' },
+            address: { type: 'string', description: 'Địa chỉ' },
+            bookingDate: { type: 'string', format: 'date', description: 'Ngày đặt lịch' },
+            bookingTime: { type: 'string', description: 'Giờ đặt lịch' },
+            notes: { type: 'string', description: 'Ghi chú' },
+            status: { type: 'string', enum: ['pending', 'confirmed', 'completed', 'cancelled'], description: 'Trạng thái booking' },
+            paymentStatus: { type: 'string', enum: ['pending', 'paid', 'failed'], description: 'Trạng thái thanh toán' },
+            totalAmount: { type: 'number', description: 'Tổng tiền' },
+            depositAmount: { type: 'number', description: 'Tiền đặt cọc' },
+            createdAt: { type: 'string', format: 'date-time' },
+            updatedAt: { type: 'string', format: 'date-time' }
+          }
         }
       },
     },

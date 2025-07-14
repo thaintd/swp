@@ -4,6 +4,9 @@ import Service from '../models/Service.model.js';
 import Shop from '../models/Shop.model.js';
 import PayOS from "@payos/node";
 import dotenv from "dotenv";
+import ServiceReview from '../models/ReviewSchema.js';
+import Customer from '../models/Customer.model.js';
+import Auth from '../models/Auth.model.js';
 
 dotenv.config();
 
@@ -121,10 +124,25 @@ export const createBooking = asyncHandler(async (req, res) => {
   const depositAmount = Math.round(service.price * 0.1);
   const totalAmount = service.price;
 
-  const booking = await Booking.create({
-    serviceId, shopId: shop._id, customerName, customerPhone, customerEmail,
-    serviceType, address, bookingDate, bookingTime, notes, totalAmount, depositAmount
-  });
+  const bookingData = {
+    serviceId,
+    shopId: shop._id,
+    customerName,
+    customerPhone,
+    customerEmail,
+    serviceType,
+    address,
+    bookingDate,
+    bookingTime,
+    notes,
+    totalAmount,
+    depositAmount
+  };
+  if (req.user) {
+    bookingData.userId = req.user._id;
+  }
+
+  const booking = await Booking.create(bookingData);
 
   res.status(201).json({
     success: true,
@@ -687,4 +705,242 @@ export const getBookingsByCustomerEmail = asyncHandler(async (req, res) => {
       pages
     }
   });
+}); 
+
+/**
+ * @swagger
+ * /api/bookings/{id}/review:
+ *   post:
+ *     summary: Đánh giá dịch vụ đã hoàn thành booking
+ *     tags: [Bookings]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID của booking
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - rating
+ *             properties:
+ *               rating:
+ *                 type: number
+ *                 minimum: 1
+ *                 maximum: 5
+ *                 example: 5
+ *               comment:
+ *                 type: string
+ *                 example: "Dịch vụ rất tốt!"
+ *     responses:
+ *       201:
+ *         description: Đánh giá thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/ServiceReview'
+ *                 message:
+ *                   type: string
+ *                   example: "Đánh giá thành công"
+ *       400:
+ *         description: Lỗi validation hoặc đã đánh giá
+ *       403:
+ *         description: Không có quyền đánh giá
+ */
+export const reviewCompletedService = asyncHandler(async (req, res) => {
+  const { id } = req.params; // bookingId
+  const { rating, comment } = req.body;
+
+  // Lấy booking và kiểm tra trạng thái
+  const booking = await Booking.findById(id);
+  if (!booking) {
+    res.status(404);
+    throw new Error('Không tìm thấy booking');
+  }
+  if (booking.status !== 'completed') {
+    res.status(400);
+    throw new Error('Chỉ có thể đánh giá dịch vụ đã hoàn thành');
+  }
+
+  // Xác định customerId qua userId (ưu tiên) hoặc email
+  let customer = null;
+  if (booking.userId) {
+    customer = await Auth.findOne({ _id: booking.userId });
+    console.log("customer",customer)
+  }
+  
+  if (!customer) {
+    res.status(403);
+    throw new Error('Không xác định được khách hàng để đánh giá');
+  }
+  // Nếu có xác thực user, kiểm tra quyền
+  if (req.user && req.user.role === 'customer' && req.user._id.toString() !== customer._id.toString()) {
+    res.status(403);
+    throw new Error('Bạn không có quyền đánh giá booking này');
+  }
+
+  // Kiểm tra đã đánh giá chưa
+  const existed = await ServiceReview.findOne({ bookingId: id, customerId: customer._id });
+  if (existed) {
+    res.status(400);
+    throw new Error('Bạn đã đánh giá booking này rồi');
+  }
+
+  // Tạo review
+  const review = await ServiceReview.create({
+    serviceId: booking.serviceId,
+    bookingId: booking._id,
+    customerId: customer._id,
+    shopId: booking.shopId,
+    rating,
+    comment
+  });
+
+  res.status(201).json({
+    success: true,
+    data: review,
+    message: 'Đánh giá thành công'
+  });
+}); 
+
+/**
+ * @swagger
+ * /api/reviews/service/{serviceId}:
+ *   get:
+ *     summary: Lấy danh sách đánh giá cho dịch vụ
+ *     tags: [Reviews]
+ *     parameters:
+ *       - in: path
+ *         name: serviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID dịch vụ
+ *     responses:
+ *       200:
+ *         description: Danh sách đánh giá
+ */
+export const getServiceReviews = asyncHandler(async (req, res) => {
+  const { serviceId } = req.params;
+  const reviews = await ServiceReview.find({ serviceId }).populate('customerId', 'username email');
+  res.json({ success: true, data: reviews });
+});
+
+/**
+ * @swagger
+ * /api/reviews/{id}:
+ *   get:
+ *     summary: Lấy chi tiết đánh giá
+ *     tags: [Reviews]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID đánh giá
+ *     responses:
+ *       200:
+ *         description: Chi tiết đánh giá
+ */
+export const getReviewById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const review = await ServiceReview.findById(id).populate('customerId', 'username email');
+  if (!review) {
+    res.status(404);
+    throw new Error('Không tìm thấy đánh giá');
+  }
+  res.json({ success: true, data: review });
+});
+
+/**
+ * @swagger
+ * /api/reviews/{id}:
+ *   put:
+ *     summary: Sửa đánh giá (chỉ customer đã tạo)
+ *     tags: [Reviews]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID đánh giá
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               rating:
+ *                 type: number
+ *                 minimum: 1
+ *                 maximum: 5
+ *               comment:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Sửa đánh giá thành công
+ */
+export const updateReview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { rating, comment } = req.body;
+  const review = await ServiceReview.findById(id);
+  if (!review) {
+    res.status(404);
+    throw new Error('Không tìm thấy đánh giá');
+  }
+  // Chỉ cho phép customer đã tạo đánh giá sửa
+  if (!req.user || (req.user.role === 'customer' && req.user._id.toString() !== review.customerId.toString())) {
+    res.status(403);
+    throw new Error('Bạn không có quyền sửa đánh giá này');
+  }
+  if (rating) review.rating = rating;
+  if (comment) review.comment = comment;
+  await review.save();
+  res.json({ success: true, data: review, message: 'Cập nhật đánh giá thành công' });
+});
+
+/**
+ * @swagger
+ * /api/reviews/{id}:
+ *   delete:
+ *     summary: Xóa đánh giá (customer đã tạo hoặc admin)
+ *     tags: [Reviews]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID đánh giá
+ *     responses:
+ *       200:
+ *         description: Xóa đánh giá thành công
+ */
+export const deleteReview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const review = await ServiceReview.findById(id);
+  if (!review) {
+    res.status(404);
+    throw new Error('Không tìm thấy đánh giá');
+  }
+  // Chỉ cho phép customer đã tạo hoặc admin xóa
+  if (!req.user || (req.user.role === 'customer' && req.user._id.toString() !== review.customerId.toString()) && req.user.role !== 'admin') {
+    res.status(403);
+    throw new Error('Bạn không có quyền xóa đánh giá này');
+  }
+  await review.deleteOne();
+  res.json({ success: true, message: 'Xóa đánh giá thành công' });
 }); 

@@ -7,7 +7,12 @@ import {
   getBookings,
   getBookingById,
   getBookingsByCustomerEmail,
-  updateBookingStatus
+  updateBookingStatus,
+  reviewCompletedService,
+  getServiceReviews,
+  getReviewById,
+  updateReview,
+  deleteReview
 } from '../controllers/booking.controller.js';
 import { protect, admin } from '../middleware/authMiddleware.js'; 
 
@@ -44,5 +49,12 @@ router.get('/:id', getBookingById);
 
 // Cập nhật trạng thái booking
 router.put('/:id', updateBookingStatus);
+
+router.post('/:id/review',protect, reviewCompletedService);
+
+router.get('/reviews/service/:serviceId',protect, getServiceReviews);
+router.get('/reviews/:id',protect, getReviewById);
+router.put('/reviews/:id',protect, updateReview);
+router.delete('/reviews/:id',protect, deleteReview);
 
 export default router; 

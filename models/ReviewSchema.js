@@ -1,13 +1,15 @@
 import mongoose from 'mongoose';
 const { Schema } = mongoose;
 
-const ReviewSchema = new Schema({
-  product:   { type: Schema.Types.ObjectId, ref: 'Product', required: true }, // Sản phẩm được đánh giá
-  customer:  { type: Schema.Types.ObjectId, ref: 'Customer', required: true }, // Người đánh giá
-  rating:    { type: Number, required: true, min: 1, max: 5 }, // Số sao
-  comment:   { type: String }, // Nhận xét
+const ServiceReviewSchema = new Schema({
+  serviceId: { type: Schema.Types.ObjectId, ref: 'Service', required: true },
+  bookingId: { type: Schema.Types.ObjectId, ref: 'Booking', required: true },
+  customerId: { type: Schema.Types.ObjectId, ref: 'Customer', required: true },
+  shopId: { type: Schema.Types.ObjectId, ref: 'Shop', required: true },
+  rating: { type: Number, required: true, min: 1, max: 5 },
+  comment: { type: String },
   createdAt: { type: Date, default: Date.now }
 });
 
-const Review = mongoose.model('Review', ReviewSchema);
-export default Review;
+const ServiceReview = mongoose.model('ServiceReview', ServiceReviewSchema);
+export default ServiceReview;
