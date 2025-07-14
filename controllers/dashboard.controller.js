@@ -133,6 +133,21 @@ const getDashboardOverview = asyncHandler(async (req, res) => {
     createdAt: { $gte: startOfMonth, $lte: endOfMonth }
   });
 
+  // Thống kê Booking
+  const totalBookingOrders = await Booking.countDocuments({
+    $or: [
+      { paymentStatus: 'paid' },
+      { status: { $in: ['confirmed', 'completed'] } }
+    ]
+  });
+  const bookingOrdersThisMonth = await Booking.countDocuments({
+    $or: [
+      { paymentStatus: 'paid' },
+      { status: { $in: ['confirmed', 'completed'] } }
+    ],
+    createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+  });
+
   // Thống kê Revenue
   const totalRevenueResult = await Order.aggregate([
     { $match: { status: { $in: ['confirmed', 'completed'] } } },
@@ -151,6 +166,38 @@ const getDashboardOverview = asyncHandler(async (req, res) => {
   ]);
   const revenueThisMonth = revenueThisMonthResult.length > 0 ? revenueThisMonthResult[0].total : 0;
 
+  // Thống kê doanh thu Booking
+  const totalBookingRevenueResult = await Booking.aggregate([
+    { $match: {
+        $or: [
+          { paymentStatus: 'paid' },
+          { status: { $in: ['confirmed', 'completed'] } }
+        ]
+      }
+    },
+    { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+  ]);
+  const totalBookingRevenue = totalBookingRevenueResult.length > 0 ? totalBookingRevenueResult[0].total : 0;
+
+  const bookingRevenueThisMonthResult = await Booking.aggregate([
+    { $match: {
+        $or: [
+          { paymentStatus: 'paid' },
+          { status: { $in: ['confirmed', 'completed'] } }
+        ],
+        createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+      }
+    },
+    { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+  ]);
+  const bookingRevenueThisMonth = bookingRevenueThisMonthResult.length > 0 ? bookingRevenueThisMonthResult[0].total : 0;
+
+  // Tổng hợp số liệu (Order + Booking)
+  const totalOrdersAll = totalOrders + totalBookingOrders;
+  const ordersThisMonthAll = ordersThisMonth + bookingOrdersThisMonth;
+  const totalRevenueAll = totalRevenue + totalBookingRevenue;
+  const revenueThisMonthAll = revenueThisMonth + bookingRevenueThisMonth;
+
   // Thống kê Services
   const totalServices = await Service.countDocuments();
   const activeServices = await Service.countDocuments({ availability: 'available' });
@@ -163,10 +210,10 @@ const getDashboardOverview = asyncHandler(async (req, res) => {
       totalShops,
       newShopsThisMonth,
       pendingShops,
-      totalOrders,
-      ordersThisMonth,
-      totalRevenue,
-      revenueThisMonth,
+      totalOrders: totalOrdersAll, // Tổng số đơn (Order + Booking)
+      ordersThisMonth: ordersThisMonthAll, // Số đơn trong tháng (Order + Booking)
+      totalRevenue: totalRevenueAll, // Tổng doanh thu (Order + Booking)
+      revenueThisMonth: revenueThisMonthAll, // Doanh thu trong tháng (Order + Booking)
       totalServices,
       activeServices,
       selectedMonth: currentMonth,
