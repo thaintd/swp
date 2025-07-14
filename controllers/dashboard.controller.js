@@ -3,6 +3,7 @@ import Auth from '../models/Auth.model.js';
 import Shop from '../models/Shop.model.js';
 import Order from '../models/Order.model.js';
 import Service from '../models/Service.model.js';
+import Booking from '../models/Booking.model.js';
 import mongoose from 'mongoose';
 
 /**
@@ -654,6 +655,129 @@ const getRevenueStats = asyncHandler(async (req, res) => {
 
   const totalRevenueOrders = await Order.countDocuments({ status: { $in: ['confirmed', 'completed'] } });
 
+  // --- Thống kê tổng số đơn hàng và tổng doanh thu của từng shop ---
+  // Cần join từ items.product -> Product.shopId
+  const shopStats = await Order.aggregate([
+    { $match: { status: { $in: ['confirmed', 'completed'] } } },
+    { $unwind: '$items' },
+    { $lookup: {
+        from: 'products',
+        localField: 'items.product',
+        foreignField: '_id',
+        as: 'productInfo'
+      }
+    },
+    { $unwind: '$productInfo' },
+    { $group: {
+        _id: '$productInfo.shopId',
+        totalRevenue: { $sum: { $multiply: ['$items.price', '$items.quantity'] } },
+        totalOrders: { $addToSet: '$_id' }
+      }
+    },
+    { $project: {
+        shopId: '$_id',
+        totalRevenue: 1,
+        totalOrders: { $size: '$totalOrders' }
+      }
+    },
+    { $lookup: {
+        from: 'shops',
+        localField: 'shopId',
+        foreignField: '_id',
+        as: 'shopInfo'
+      }
+    },
+    { $unwind: '$shopInfo' },
+    { $project: {
+        shopId: 1,
+        totalRevenue: 1,
+        totalOrders: 1,
+        shopName: '$shopInfo.shopName',
+        shopAddress: '$shopInfo.shopAddress'
+      }
+    }
+  ]);
+
+  // --- Booking Stats ---
+  // Lấy tổng doanh thu và số lượng booking (đã thanh toán hoặc hoàn thành)
+  const bookingMatch = {
+    $or: [
+      { paymentStatus: 'paid' },
+      { status: { $in: ['confirmed', 'completed'] } }
+    ]
+  };
+  const bookingDateMatch = {
+    ...bookingMatch,
+    createdAt: { $gte: startOfMonth, $lte: endOfMonth }
+  };
+
+  // Tổng doanh thue booking
+  const totalBookingRevenueResult = await Booking.aggregate([
+    { $match: bookingMatch },
+    { $group: { _id: null, total: { $sum: '$totalAmount' }, count: { $sum: 1 } } }
+  ]);
+  const totalBookingRevenue = totalBookingRevenueResult.length > 0 ? totalBookingRevenueResult[0].total : 0;
+  const totalBookingOrders = totalBookingRevenueResult.length > 0 ? totalBookingRevenueResult[0].count : 0;
+
+  // Doanh thu booking trong tháng
+  const bookingRevenueThisMonthResult = await Booking.aggregate([
+    { $match: bookingDateMatch },
+    { $group: { _id: null, total: { $sum: '$totalAmount' }, count: { $sum: 1 } } }
+  ]);
+  const bookingRevenueThisMonth = bookingRevenueThisMonthResult.length > 0 ? bookingRevenueThisMonthResult[0].total : 0;
+  const bookingOrdersThisMonth = bookingRevenueThisMonthResult.length > 0 ? bookingRevenueThisMonthResult[0].count : 0;
+
+  // Thống kê doanh thu booking theo shop
+  const bookingShopStats = await Booking.aggregate([
+    { $match: bookingMatch },
+    { $group: {
+        _id: '$shopId',
+        totalRevenue: { $sum: '$totalAmount' },
+        totalOrders: { $sum: 1 }
+      }
+    },
+    { $lookup: {
+        from: 'shops',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'shopInfo'
+      }
+    },
+    { $unwind: '$shopInfo' },
+    { $project: {
+        shopId: '$_id',
+        totalRevenue: 1,
+        totalOrders: 1,
+        shopName: '$shopInfo.shopName',
+        shopAddress: '$shopInfo.shopAddress'
+      }
+    }
+  ]);
+
+  // --- Cộng dồn số liệu Booking vào tổng số liệu ---
+  const totalRevenueAll = totalRevenue + totalBookingRevenue;
+  const revenueThisMonthAll = revenueThisMonth + bookingRevenueThisMonth;
+  const totalOrdersAll = totalOrders + totalBookingOrders;
+  const ordersThisMonthAll = ordersThisMonth + bookingOrdersThisMonth;
+
+  // Gộp shopStats của Order và Booking
+  const shopStatsMap = new Map();
+  // Từ Order
+  for (const s of shopStats) {
+    shopStatsMap.set(String(s.shopId), { ...s });
+  }
+  // Từ Booking
+  for (const b of bookingShopStats) {
+    const key = String(b.shopId);
+    if (shopStatsMap.has(key)) {
+      shopStatsMap.get(key).totalRevenue += b.totalRevenue;
+      shopStatsMap.get(key).totalOrders += b.totalOrders;
+    } else {
+      shopStatsMap.set(key, { ...b });
+    }
+  }
+  const mergedShopStats = Array.from(shopStatsMap.values());
+
   res.json({
     success: true,
     data: {
@@ -662,16 +786,17 @@ const getRevenueStats = asyncHandler(async (req, res) => {
       pages: Math.ceil(totalRevenueOrders / pageSize),
       total: totalRevenueOrders,
       stats: {
-        totalRevenue,
-        revenueThisMonth,
-        totalOrders,
-        ordersThisMonth,
+        totalRevenue: totalRevenueAll,
+        revenueThisMonth: revenueThisMonthAll,
+        totalOrders: totalOrdersAll,
+        ordersThisMonth: ordersThisMonthAll,
         averageOrderValue,
         averageOrderValueThisMonth,
         pendingRevenue,
         completedRevenue,
         selectedMonth: currentMonth,
-        selectedYear: currentYear
+        selectedYear: currentYear,
+        shopStats: mergedShopStats
       }
     },
     message: 'Lấy thống kê doanh thu thành công',
