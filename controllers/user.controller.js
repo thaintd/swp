@@ -92,10 +92,10 @@ const authUser = asyncHandler(async (req, res) => {
   });
   if (user && (await user.matchPassword(password))) {
     // Thêm kiểm tra xác thực email
-    if (!user.isEmailVerified) {
-      res.status(401);
-      throw new Error("Email chưa được xác thực. Vui lòng kiểm tra email của bạn.");
-    }
+    // if (!user.isEmailVerified) {
+    //   res.status(401);
+    //   throw new Error("Email chưa được xác thực. Vui lòng kiểm tra email của bạn.");
+    // }
 
     // Tạo response data cơ bản
     const responseData = {
