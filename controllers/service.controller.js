@@ -278,12 +278,19 @@ const createService = asyncHandler(async (req, res) => {
  *                     $ref: '#/components/schemas/Service'
  *                 page:
  *                   type: integer
+ *                   description: Trang hiện tại
  *                   example: 1
  *                 pages:
  *                   type: integer
+ *                   description: Tổng số trang
  *                   example: 5
+ *                 limit:
+ *                   type: integer
+ *                   description: Số lượng items trên mỗi trang
+ *                   example: 10
  *                 total:
  *                   type: integer
+ *                   description: Tổng số dịch vụ
  *                   example: 50
  *                 message:
  *                   type: string
@@ -389,6 +396,7 @@ const getServices = asyncHandler(async (req, res) => {
     data: services,
     page,
     pages: Math.ceil(count / pageSize),
+    limit: pageSize,
     total: count,
     message: 'Lấy danh sách dịch vụ thành công',
   });
@@ -772,12 +780,19 @@ const deleteService = asyncHandler(async (req, res) => {
  *                     $ref: '#/components/schemas/Service'
  *                 page:
  *                   type: integer
+ *                   description: Trang hiện tại
  *                   example: 1
  *                 pages:
  *                   type: integer
+ *                   description: Tổng số trang
  *                   example: 2
+ *                 limit:
+ *                   type: integer
+ *                   description: Số lượng items trên mỗi trang
+ *                   example: 10
  *                 total:
  *                   type: integer
+ *                   description: Tổng số dịch vụ
  *                   example: 15
  *                 message:
  *                   type: string
@@ -824,6 +839,7 @@ const getServicesByShop = asyncHandler(async (req, res) => {
     data: services,
     page,
     pages: Math.ceil(count / pageSize),
+    limit: pageSize,
     total: count,
     message: 'Lấy danh sách dịch vụ của shop thành công',
   });

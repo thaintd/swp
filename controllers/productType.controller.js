@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import ProductType from '../models/ProductType.model.js';
+import Service from '../models/Service.model.js';
 import mongoose from 'mongoose';
 
 /**
@@ -102,7 +103,27 @@ import mongoose from 'mongoose';
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/ProductType'
+ *                     type: object
+ *                     properties:
+ *                       _id:
+ *                         type: string
+ *                         example: "60f0a9c1a6b7c3001f123456"
+ *                       name:
+ *                         type: string
+ *                         example: "Camera DSLR"
+ *                       description:
+ *                         type: string
+ *                         example: "Các dòng máy ảnh DSLR chuyên nghiệp"
+ *                       serviceCount:
+ *                         type: integer
+ *                         description: "Số lượng dịch vụ đang sử dụng loại sản phẩm này"
+ *                         example: 5
+ *                       createdAt:
+ *                         type: string
+ *                         format: date-time
+ *                       updatedAt:
+ *                         type: string
+ *                         format: date-time
  *                 message:
  *                   type: string
  *                   example: "Lấy danh sách loại sản phẩm thành công"
@@ -143,7 +164,28 @@ const createProductType = asyncHandler(async (req, res) => {
 // @route   GET /api/product-types
 // @access  Public (hoặc Private tùy yêu cầu)
 const getProductTypes = asyncHandler(async (req, res) => {
-  const productTypes = await ProductType.find({});
+  // Sử dụng aggregate để lấy product types và đếm số lượng services
+  const productTypes = await ProductType.aggregate([
+    {
+      $lookup: {
+        from: 'services', // Tên collection của Service model
+        localField: '_id',
+        foreignField: 'categories',
+        as: 'services'
+      }
+    },
+    {
+      $addFields: {
+        serviceCount: { $size: '$services' } // Đếm số lượng services
+      }
+    },
+    {
+      $project: {
+        services: 0 // Loại bỏ mảng services khỏi kết quả, chỉ giữ lại serviceCount
+      }
+    }
+  ]);
+
   res.json({
     success: true,
     data: productTypes,
@@ -176,7 +218,27 @@ const getProductTypes = asyncHandler(async (req, res) => {
  *                   type: boolean
  *                   example: true
  *                 data:
- *                   $ref: '#/components/schemas/ProductType'
+ *                   type: object
+ *                   properties:
+ *                     _id:
+ *                       type: string
+ *                       example: "60f0a9c1a6b7c3001f123456"
+ *                     name:
+ *                       type: string
+ *                       example: "Camera DSLR"
+ *                     description:
+ *                       type: string
+ *                       example: "Các dòng máy ảnh DSLR chuyên nghiệp"
+ *                     serviceCount:
+ *                       type: integer
+ *                       description: "Số lượng dịch vụ đang sử dụng loại sản phẩm này"
+ *                       example: 5
+ *                     createdAt:
+ *                       type: string
+ *                       format: date-time
+ *                     updatedAt:
+ *                       type: string
+ *                       format: date-time
  *                 message:
  *                   type: string
  *                   example: "Lấy thông tin loại sản phẩm thành công"
@@ -210,12 +272,36 @@ const getProductTypeById = asyncHandler(async (req, res) => {
       res.status(400);
       throw new Error('ID loại sản phẩm không hợp lệ.');
   }
-  const productType = await ProductType.findById(req.params.id);
 
-  if (productType) {
+  // Sử dụng aggregate để lấy product type và đếm số lượng services
+  const productTypes = await ProductType.aggregate([
+    {
+      $match: { _id: new mongoose.Types.ObjectId(req.params.id) }
+    },
+    {
+      $lookup: {
+        from: 'services', // Tên collection của Service model
+        localField: '_id',
+        foreignField: 'categories',
+        as: 'services'
+      }
+    },
+    {
+      $addFields: {
+        serviceCount: { $size: '$services' } // Đếm số lượng services
+      }
+    },
+    {
+      $project: {
+        services: 0 // Loại bỏ mảng services khỏi kết quả, chỉ giữ lại serviceCount
+      }
+    }
+  ]);
+
+  if (productTypes && productTypes.length > 0) {
     res.json({
       success: true,
-      data: productType,
+      data: productTypes[0],
       message: 'Lấy thông tin loại sản phẩm thành công',
     });
   } else {

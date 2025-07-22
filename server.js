@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import express from 'express';
 import connectDB from './config/db.js';
 import { createDefaultAdmin } from './utils/InitAccount.js';
+import { seedUsers } from './utils/seedUsers.js';
 import UserRoute from './routes/User.route.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 import ProductTypeRoute from './routes/productType.routes.js';
@@ -34,6 +35,12 @@ app.use(express.json());
 
 connectDB();
 createDefaultAdmin();
+
+// // Seed dữ liệu users sau khi tạo admin
+// setTimeout(async () => {
+//   await seedUsers();
+// }, 2000); // Đợi 2 giây để đảm bảo database đã kết nối
+
 app.use('/api/users', UserRoute);
 app.use('/api/product-types', ProductTypeRoute);
 app.use('/api/products', productRoutes);

@@ -57,6 +57,15 @@ import { protect, admin } from "../middleware/authMiddleware.js";
  *                       type: string
  *                     role:
  *                       type: string
+ *                     firstName:
+ *                       type: string
+ *                       example: "Nguyễn"
+ *                     lastName:
+ *                       type: string
+ *                       example: "Văn A"
+ *                     address:
+ *                       type: string
+ *                       example: "123 Đường ABC, Quận 1, TP.HCM"
  *                     isEmailVerified:
  *                       type: boolean
  *                     shopId:
@@ -103,6 +112,9 @@ const authUser = asyncHandler(async (req, res) => {
       username: user.username,
       email: user.email,
       role: user.role,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      address: user.address,
       isEmailVerified: user.isEmailVerified,
       token: generateToken(user._id)
     };
@@ -678,12 +690,6 @@ const verifyEmail = asyncHandler(async (req, res) => {
  *           schema:
  *             type: object
  *             properties:
- *               username:
- *                 type: string
- *                 example: newUsername
- *               phone:
- *                 type: string
- *                 example: "0123456789"
  *               firstName:
  *                 type: string
  *                 example: "Nguyen"
@@ -709,10 +715,10 @@ const verifyEmail = asyncHandler(async (req, res) => {
  *                   properties:
  *                     username:
  *                       type: string
- *                       example: "newUsername"
- *                     phone:
+ *                       example: "user123"
+ *                     email:
  *                       type: string
- *                       example: "0123456789"
+ *                       example: "user@example.com"
  *                     firstName:
  *                       type: string
  *                       example: "Nguyen"
@@ -737,7 +743,7 @@ const verifyEmail = asyncHandler(async (req, res) => {
  *                   example: "Không tìm thấy người dùng"
  */
 const updateProfile = asyncHandler(async (req, res) => {
-  const { username } = req.body;
+  const { firstName, lastName, address } = req.body;
 
   const user = await Auth.findById(req.user._id);
   console.log("user", user);
@@ -747,12 +753,10 @@ const updateProfile = asyncHandler(async (req, res) => {
     throw new Error("Không tìm thấy người dùng");
   }
 
-  // Cập nhật thông tin người dùng
-  user.username = username || user.username;
-  user.phone = req.body.phone || user.phone;
-  user.firstName = req.body.firstName || user.firstName;
-  user.lastName = req.body.lastName || user.lastName;
-  user.address = req.body.address || user.address;
+  // Cập nhật thông tin người dùng (chỉ firstName, lastName, address)
+  user.firstName = firstName || user.firstName;
+  user.lastName = lastName || user.lastName;
+  user.address = address || user.address;
 
   await user.save();
 
@@ -761,7 +765,6 @@ const updateProfile = asyncHandler(async (req, res) => {
     data: {
       username: user.username,
       email: user.email,
-      phone: user.phone,
       firstName: user.firstName,
       lastName: user.lastName,
       address: user.address
